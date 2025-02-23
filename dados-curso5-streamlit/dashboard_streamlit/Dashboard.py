@@ -29,6 +29,17 @@ receita_mensal['Mês'] = receita_mensal['Data da Compra'].dt.month_name()
 receita_categorias = dados.groupby('Categoria do Produto')[['Preço']].sum().sort_values('Preço', ascending=False)
 
 ### Tabelas de quantidade de vendas
+qtd_vendas_estados = dados.groupby('Local da compra')[['Preço']].count()
+qtd_vendas_estados = dados.drop_duplicates(subset='Local da compra')[['Local da compra', 'lat', 'lon']].merge(qtd_vendas_estados, left_on='Local da compra', right_index=True).reset_index(drop=True).sort_values('Preço', ascending=False)
+qtd_vendas_estados.columns = ['Estado', 'lat', 'lon', 'Quantidade vendas']
+
+qtd_vendas_mensal = dados.set_index('Data da Compra').groupby(pd.Grouper(freq='M'))[['Preço']].count().reset_index()
+qtd_vendas_mensal['Ano'] = qtd_vendas_mensal['Data da Compra'].dt.year
+qtd_vendas_mensal['Mês'] = qtd_vendas_mensal['Data da Compra'].dt.month_name()
+qtd_vendas_mensal.columns = ['Data da Compra', 'Quantidade Vendas', 'Ano', 'Mês']
+
+qtd_vendas_categoria = dados.groupby('Categoria do Produto')[['Preço']].count().sort_values('Preço', ascending=True)
+qtd_vendas_categoria.columns = ['Quantidade vendas']
 
 ### Tabelas de vendedores
 vendedores = pd.DataFrame(dados.groupby('Vendedor')['Preço'].agg(['sum', 'count']))
@@ -68,6 +79,38 @@ fig_receita_categorias = px.bar(    receita_categorias,
 
 fig_receita_categorias.update_layout(yaxis_title='Receita')
 
+fig_mapa_qtd_vendas_estados = px.scatter_geo(  qtd_vendas_estados,
+                                    lat='lat',
+                                    lon='lon',
+                                    scope='south america',
+                                    size='Quantidade vendas',
+                                    hover_name='Estado',
+                                    hover_data={'lat': False, 'lon': False},
+                                    title='Quantidade de vendas por estado')
+
+fig_qtd_vendas_mensal = px.line(   qtd_vendas_mensal,
+                                x='Mês',
+                                y='Quantidade Vendas',
+                                markers=True,
+                                range_y=(0, qtd_vendas_mensal.max()),
+                                color='Ano',
+                                line_dash='Ano',
+                                title='Quantidade de vendas mensal')
+
+fig_top_5_estados_qtd_vendas = px.bar(   qtd_vendas_estados.head(5),
+                                x='Estado',
+                                y='Quantidade vendas',
+                                text_auto=True,
+                                title='Top estados (quantidade vendas)')
+
+fig_qtd_vendas_categoria = px.bar(   qtd_vendas_categoria,
+                                x='Quantidade vendas',
+                                y=qtd_vendas_categoria.index,
+                                text_auto=True,
+                                title='Quantidade de vendas por categoria de produto')
+
+
+
 ## Visualização no streamlit
 aba1, aba2, aba3 = st.tabs(['Receita', 'Quantidade de Vendas', 'Vendedores'])
 with aba1:
@@ -86,8 +129,14 @@ with aba2:
     coluna1, coluna2 = st.columns(2)
     with coluna1:
         st.metric('Receita', formata_numero(dados['Preço'].sum(), 'R$'))
+        st.plotly_chart(fig_mapa_qtd_vendas_estados, use_container_width=True)
+        st.plotly_chart(fig_top_5_estados_qtd_vendas, use_container_width=True)
+        
     with coluna2:
         st.metric('Quantidade de vendas', formata_numero(dados.shape[0]))
+        st.plotly_chart(fig_qtd_vendas_mensal, use_container_width=True)
+        st.plotly_chart(fig_qtd_vendas_categoria, use_container_width=True)
+        
 
 with aba3:
     qtd_vendedores = st.number_input('Quantidade vendedores', 2, 10, 5)
