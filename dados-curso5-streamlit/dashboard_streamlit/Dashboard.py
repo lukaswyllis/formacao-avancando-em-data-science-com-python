@@ -2,6 +2,7 @@ import streamlit as st
 import requests
 import pandas as pd
 import plotly.express as px
+import numpy as np
 
 def formata_numero(valor, prefixo=''):
     for unidade in ['', 'mil']:
@@ -13,9 +14,32 @@ def formata_numero(valor, prefixo=''):
 st.title('DASHBOARD DE VENDAS :shopping_trolley:')
 
 url = 'https://labdados.com/produtos'
-response = requests.get(url)
+regioes = ['Brasil', 'Centro-Oeste', 'Nordeste', 'Norte', 'Sudeste', 'Sul']
+
+st.sidebar.title('Filtros')
+regiao = st.sidebar.selectbox('Região', regioes)
+
+# Se a região selecionada for Brasil, não faz nenhum filtro
+if regiao == 'Brasil':
+    regiao = ''
+
+todos_anos = st.sidebar.checkbox('Dados de todo o período', value=True)
+# Se a nenhum ano for selecionado, traz todos os anos
+if todos_anos:
+    ano = ''
+else:
+    ano = st.sidebar.slider('Ano', 2020, 2023)
+
+query_string = {'regiao': regiao.lower(), 'ano': ano}
+
+response = requests.get(url, params=query_string)
 dados = pd.DataFrame.from_dict(response.json())
 dados['Data da Compra'] = pd.to_datetime(dados['Data da Compra'], format='%d/%m/%Y')
+
+filtro_vendedores = st.sidebar.multiselect('Vendedores', np.sort(dados['Vendedor'].unique()))
+
+if filtro_vendedores:
+    dados = dados[dados['Vendedor'].isin(filtro_vendedores)]
 
 ## Tabelas 
 ### Tabelas de receita
@@ -74,6 +98,8 @@ fig_receita_estados = px.bar(   receita_estados.head(),
 fig_receita_estados.update_layout(yaxis_title='Receita')
 
 fig_receita_categorias = px.bar(    receita_categorias,
+                                    x='Preço',
+                                    y=receita_categorias.index,
                                     text_auto=True,
                                     title='Receita por categoria')
 
@@ -108,8 +134,6 @@ fig_qtd_vendas_categoria = px.bar(   qtd_vendas_categoria,
                                 y=qtd_vendas_categoria.index,
                                 text_auto=True,
                                 title='Quantidade de vendas por categoria de produto')
-
-
 
 ## Visualização no streamlit
 aba1, aba2, aba3 = st.tabs(['Receita', 'Quantidade de Vendas', 'Vendedores'])
